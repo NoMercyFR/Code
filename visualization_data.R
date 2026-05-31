@@ -28,11 +28,11 @@ map_data <- st_simplify(map_data, dTolerance = 0.01, preserveTopology = TRUE)
 unique(map_data$gdlcode[grepl("MDG", map_data$gdlcode)])
 # --- 5. Create 5 quantile bins ---
 map_data <- map_data %>%
-  mutate(fullsci_q = cut(
-    fullsci,
-    breaks = quantile(fullsci, probs = seq(0, 1, 0.2), na.rm = TRUE),
+  mutate(gvi_q = cut(
+    gvi,
+    breaks = quantile(gvi, probs = seq(0, 1, 0.2), na.rm = TRUE),
     include.lowest = TRUE,
-    labels = c("Q1 (highest)", "Q2", "Q3", "Q4", "Q5 (lowest)")
+    labels = c("Q1 (lowest)", "Q2", "Q3", "Q4", "Q5 (highest)")
   ))
 
 # --- 6. Africa background ---
@@ -43,11 +43,11 @@ map_data <- st_transform(map_data, st_crs(africa))
 # --- 7. Plot (assign + print explicitly) ---
 p <- ggplot() +
   geom_sf(data = africa, fill = "grey95", color = "grey70", linewidth = 0.2) +
-  geom_sf(data = map_data, aes(fill = fullsci_q), color = "black", linewidth = 0.05) +
-  scale_fill_brewer(palette = "YlOrRd",direction = -1, name = "Corruption Index\n(quintiles)", na.value ="blue") +
+  geom_sf(data = map_data, aes(fill = gvi_q), color = "black", linewidth = 0.05) +
+  scale_fill_brewer(palette = "YlOrRd",direction = -1, name = "Vulnerability Index\n(quintiles)", na.value ="blue") +
   coord_sf(xlim = c(-20, 52), ylim = c(-36, 38)) +
   labs(
-    title = "Corruption Index by Subnational Region",
+    title = "Vulnerability Index",
     subtitle = "Africa", caption = "Source: Global Data Lab"
   ) +
   theme_minimal() +
@@ -55,4 +55,4 @@ p <- ggplot() +
 
 print(p)   # <-- forces the plot to display
 ###
-print(2)
+
