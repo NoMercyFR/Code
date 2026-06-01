@@ -3,6 +3,8 @@ library(sf)
 library(ggplot2)
 library(rnaturalearth)
 library(spatialreg)
+library(spdep)
+
 ###############################""
 # --- 1. Load data ---
 data <- read.csv("C:/Users/cleme/Documents/Master_Allemagne/Topic_Economic_History/Dataset_code/data_set_2010_allvar.csv")
@@ -60,8 +62,6 @@ print(p)   # <-- forces the plot to display
 
 ############Econometric part###########
 
-library(spdep)
-
 map_without_na <- map_data %>%
   filter(!is.na(edyr25),
          !is.na(fullsci),
@@ -70,24 +70,54 @@ map_without_na <- map_data %>%
          !is.na(iwi),
          !is.na(gvi))
 
+map_without_na <- st_make_valid(map_without_na)
+cat("Regions after dropping NA:", nrow(map_without_na), "\n")
 
-map_without_na <- st_make_valid(map_without_na) #problem with package sf
+# --- Project to metres (mandatory for length computation) ---
+map_proj <- st_transform(map_without_na,
+                         crs = "+proj=aea +lat_1=20 +lat_2=-23 +lat_0=0 +lon_0=25")
+map_proj <- st_make_valid(map_proj)
+n        <- nrow(map_proj)
 
-cat("Regions after dropping NA in edyr25:", nrow(map_without_na), "\n")
+# --- Queen contiguity (tells us which pairs share a border) ---
+nb_queen <- poly2nb(map_proj, queen = TRUE, snap = 1e-4)
 
-#Queen contiguity means that 2 polygone are considered neighbor either if they share a border or a corner
+# --- Perimeter of each region in metres ---
+map_proj$perimeter_m <- as.numeric(st_perimeter(map_proj))
 
-nb_queen <- poly2nb(map_without_na, queen = TRUE)
+# --- Shared border length matrix ---
+W_raw <- matrix(0, n, n)
 
-#Then I standardized the row , equal weight between neighbor even if a country shares a larger border 
+for (i in seq_len(n)) {
+  nbrs <- nb_queen[[i]]
+  if (length(nbrs) == 0 || nbrs[1] == 0L) next
+  for (j in nbrs) {
+    inter <- tryCatch(
+      st_intersection(map_proj[i, "geometry"], map_proj[j, "geometry"]),
+      error = function(e) NULL
+    )
+    if (is.null(inter) || nrow(inter) == 0) next
+    if (any(grepl("LINE|COLLECTION", as.character(st_geometry_type(inter))))) {
+      W_raw[i, j] <- as.numeric(st_length(inter))
+    }
+  }
+}
 
-W_queen <- nb2listw(nb_queen, style = "W", zero.policy = TRUE)
+# --- Divide by own perimeter: w_ij = border_ij / P_i ---
+W_perim <- W_raw / map_proj$perimeter_m
+
+# --- Convert to listw ---
+W_perim_listw <- mat2listw(W_perim, style = "W", zero.policy = TRUE)
+
+
+
+
 
 #Moran and Geary Index on raw data
 
 #In both tests, there are a a high autocorrelation
-moran_index <- moran.test(map_without_na$edyr25, listw = W_queen, zero.policy = TRUE)
-geary_index <- geary.test(map_without_na$edyr25, listw = W_queen, zero.policy = TRUE)
+moran_index <- moran.test(map_without_na$edyr25, listw = W_perim_listw, zero.policy = TRUE)
+geary_index <- geary.test(map_without_na$edyr25, listw = W_perim_listw, zero.policy = TRUE)
 
 print(moran_index)
 print(geary_index)
@@ -97,22 +127,13 @@ print(geary_index)
 ols<- lm(edyr25 ~ fullsci + regpopm + hhsize + iwi, data = map_without_na)
 print(ols)
 
-moran.test(residuals(ols), listw = W_queen, zero.policy = TRUE)
+moran.test(residuals(ols), listw = W_perim_listw, zero.policy = TRUE)
 
-
-####Specification model with LM test to choose between Spatial autoregressive model(SAR) and Spatial Error Model(SEM)
-
-
-# LM battery → tells you SAR vs SEM
-lm.RStests(ols, listw = W_queen, test = "all")
-
-#The conclusion is weird but I am going to implement SEM
+lm.RStests(ols, listw = W_perim_listw, test = "all")
 
 sem_model <- errorsarlm(edyr25 ~ fullsci + regpopm + hhsize + iwi,
-                       data = map_without_na,
-                       listw = W_queen,
-                       zero.policy = TRUE)
+                        data = map_without_na,
+                        listw = W_perim_listw,
+                        zero.policy = TRUE)
 
 summary(sem_model)
-print(2)
-########################
