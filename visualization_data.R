@@ -44,7 +44,7 @@ map_data <- st_transform(map_data, st_crs(africa))
 p <- ggplot() +
   geom_sf(data = africa, fill = "grey95", color = "grey70", linewidth = 0.2) +
   geom_sf(data = map_data, aes(fill = gvi_q), color = "black", linewidth = 0.05) +
-  scale_fill_brewer(palette = "YlOrRd",direction = -1, name = "Vulnerability Index\n(quintiles)", na.value ="blue") +
+  scale_fill_brewer(palette = "YlOrRd", name = "Vulnerability Index\n(quintiles)", na.value ="blue") +
   coord_sf(xlim = c(-20, 52), ylim = c(-36, 38)) +
   labs(
     title = "Vulnerability Index",
