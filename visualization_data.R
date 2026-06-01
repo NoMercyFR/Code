@@ -56,3 +56,45 @@ p <- ggplot() +
 print(p)   # <-- forces the plot to display
 ###
 
+
+############Econometric part###########
+
+library(spdep)
+
+map_without_na <- map_data %>%
+  filter(!is.na(edyr25),
+         !is.na(fullsci),
+         !is.na(regpopm),
+         !is.na(hhsize),
+         !is.na(iwi),
+         !is.na(gvi))
+
+
+map_without_na <- st_make_valid(map_without_na) #problem with package sf
+
+cat("Regions after dropping NA in edyr25:", nrow(map_without_na), "\n")
+
+#Queen contiguity means that 2 polygone are considered neighbor either if they share a border or a corner
+
+nb_queen <- poly2nb(map_without_na, queen = TRUE)
+
+#Then I standardized the row , equal weight between neighbor even if a country shares a larger border 
+
+W_queen <- nb2listw(nb_queen, style = "W", zero.policy = TRUE)
+
+#Moran and Geary Index
+
+#In both tests, there are a a high autocorrelation
+moran_index <- moran.test(map_without_na$edyr25, listw = W_queen, zero.policy = TRUE)
+geary_index <- geary.test(map_without_na$edyr25, listw = W_queen, zero.policy = TRUE)
+
+print(moran_index)
+print(geary_index)
+
+#Regression with OLS 
+
+ols<- lm(edyr25 ~ fullsci + regpopm + hhsize + iwi, data = map_without_na)
+print(ols)
+
+moran.test(residuals(ols), listw = W_queen, zero.policy = TRUE)
+
