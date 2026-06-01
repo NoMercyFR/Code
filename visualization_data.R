@@ -2,6 +2,7 @@ library(dplyr)
 library(sf)
 library(ggplot2)
 library(rnaturalearth)
+library(spatialreg)
 ###############################""
 # --- 1. Load data ---
 data <- read.csv("C:/Users/cleme/Documents/Master_Allemagne/Topic_Economic_History/Dataset_code/data_set_2010_allvar.csv")
@@ -82,7 +83,7 @@ nb_queen <- poly2nb(map_without_na, queen = TRUE)
 
 W_queen <- nb2listw(nb_queen, style = "W", zero.policy = TRUE)
 
-#Moran and Geary Index
+#Moran and Geary Index on raw data
 
 #In both tests, there are a a high autocorrelation
 moran_index <- moran.test(map_without_na$edyr25, listw = W_queen, zero.policy = TRUE)
@@ -98,3 +99,20 @@ print(ols)
 
 moran.test(residuals(ols), listw = W_queen, zero.policy = TRUE)
 
+
+####Specification model with LM test to choose between Spatial autoregressive model(SAR) and Spatial Error Model(SEM)
+
+
+# LM battery → tells you SAR vs SEM
+lm.RStests(ols, listw = W_queen, test = "all")
+
+#The conclusion is weird but I am going to implement SEM
+
+sem_model <- errorsarlm(edyr25 ~ fullsci + regpopm + hhsize + iwi,
+                       data = map_without_na,
+                       listw = W_queen,
+                       zero.policy = TRUE)
+
+summary(sem_model)
+print(2)
+########################
