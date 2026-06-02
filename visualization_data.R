@@ -7,7 +7,7 @@ library(spdep)
 
 ###############################""
 # --- 1. Load data ---
-data <- read.csv("C:/Users/cleme/Documents/Master_Allemagne/Topic_Economic_History/Dataset_code/data_set_2010_allvar.csv")
+data <- read.csv("C:/Users/cleme/Documents/Master_Allemagne/Topic_Economic_History/Dataset_code/final_data/GDL_2010_merged_common_rows.csv")
 
 # --- 2. Load shapefile (ONE st_read only!) ---
 gdl_shapes <- st_read("C:/Users/cleme/Documents/Master_Allemagne/Topic_Economic_History/Dataset_code/GDL Shapefiles V6.6/GDL Shapefiles V6.6 large.shp")
@@ -31,9 +31,9 @@ map_data <- st_simplify(map_data, dTolerance = 0.01, preserveTopology = TRUE)
 unique(map_data$gdlcode[grepl("MDG", map_data$gdlcode)])
 # --- 5. Create 5 quantile bins ---
 map_data <- map_data %>%
-  mutate(gvi_q = cut(
-    gvi,
-    breaks = quantile(gvi, probs = seq(0, 1, 0.2), na.rm = TRUE),
+  mutate(msch_q = cut(
+    msch,
+    breaks = quantile(msch, probs = seq(0, 1, 0.2), na.rm = TRUE),
     include.lowest = TRUE,
     labels = c("Q1 (lowest)", "Q2", "Q3", "Q4", "Q5 (highest)")
   ))
@@ -46,11 +46,11 @@ map_data <- st_transform(map_data, st_crs(africa))
 # --- 7. Plot (assign + print explicitly) ---
 p <- ggplot() +
   geom_sf(data = africa, fill = "grey95", color = "grey70", linewidth = 0.2) +
-  geom_sf(data = map_data, aes(fill = gvi_q), color = "black", linewidth = 0.05) +
-  scale_fill_brewer(palette = "YlOrRd", name = "Vulnerability Index\n(quintiles)", na.value ="blue") +
+  geom_sf(data = map_data, aes(fill = msch_q), color = "black", linewidth = 0.05) +
+  scale_fill_brewer(palette = "YlOrRd", name = "Mean Years\nof schooling(quintiles)", na.value ="blue") +
   coord_sf(xlim = c(-20, 52), ylim = c(-36, 38)) +
   labs(
-    title = "Vulnerability Index",
+    title = "Mean Years of schooling",
     subtitle = "Africa", caption = "Source: Global Data Lab"
   ) +
   theme_minimal() +
@@ -63,13 +63,15 @@ print(p)   # <-- forces the plot to display
 ############Econometric part###########
 
 map_without_na <- map_data %>%
-  filter(!is.na(edyr25),
+  filter(!is.na(msch),
          !is.na(fullsci),
-         !is.na(regpopm),
-         !is.na(hhsize),
+         !is.na(infmort),
+         !is.na(urban),
          !is.na(iwi),
-         !is.na(gvi))
-
+         !is.na(popshare),
+         !is.na(gini),
+         !is.na(hhsize))
+#lm(msch ~ iwi + urban + hhsize + infmort + fullsci, data = data)
 map_without_na <- st_make_valid(map_without_na)
 cat("Regions after dropping NA:", nrow(map_without_na), "\n")
 
@@ -116,24 +118,25 @@ W_perim_listw <- mat2listw(W_perim, style = "W", zero.policy = TRUE)
 #Moran and Geary Index on raw data
 
 #In both tests, there are a a high autocorrelation
-moran_index <- moran.test(map_without_na$edyr25, listw = W_perim_listw, zero.policy = TRUE)
-geary_index <- geary.test(map_without_na$edyr25, listw = W_perim_listw, zero.policy = TRUE)
+moran_index <- moran.test(map_without_na$msch, listw = W_perim_listw, zero.policy = TRUE)
+geary_index <- geary.test(map_without_na$msch, listw = W_perim_listw, zero.policy = TRUE)
 
 print(moran_index)
 print(geary_index)
 
 #Regression with OLS 
 
-ols<- lm(edyr25 ~ fullsci + regpopm + hhsize + iwi, data = map_without_na)
+ols<- lm(msch ~ iwi + urban + hhsize + infmort + fullsci + gini, data = map_without_na)
 print(ols)
 
 moran.test(residuals(ols), listw = W_perim_listw, zero.policy = TRUE)
 
 lm.RStests(ols, listw = W_perim_listw, test = "all")
 
-sem_model <- errorsarlm(edyr25 ~ fullsci + regpopm + hhsize + iwi,
-                        data = map_without_na,
-                        listw = W_perim_listw,
-                        zero.policy = TRUE)
+sem_msch <- errorsarlm(msch ~ iwi + urban + hhsize + infmort + fullsci,
+                       data = map_without_na,
+                       listw = W_perim_listw,
+                       zero.policy = TRUE)
+summary(sem_msch)
 
-summary(sem_model)
+
