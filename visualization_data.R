@@ -139,4 +139,8 @@ sem_msch <- errorsarlm(msch ~ iwi + urban + hhsize + infmort + fullsci,
                        zero.policy = TRUE)
 summary(sem_msch)
 
-
+sdm <- lagsarlm(msch ~ iwi + urban + hhsize + infmort + fullsci + gini,
+                data = map_without_na, listw = W_perim_listw,
+                type = "mixed", zero.policy = TRUE)
+summary(sdm)
+impacts(sdm, listw = W_perim_listw)  # direct + indirect (spillover) effects
